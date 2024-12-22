@@ -1,6 +1,14 @@
 import SideNav from "@/app/ui/dashboard/sidenav";
 
 /**
+ * Next.js will prerender the static parts of your route (at build time)
+ * and defer the dynamic parts until the user requests them.
+ * As long as you're using Suspense to wrap the dynamic parts of your route,
+ * Next.js will know which parts of your route are static and which are dynamic.
+ */
+export const experimental_ppr = true;
+
+/**
  *
  * layout.tsx: UI that is shared between multiple pages.
  * One benefit of using layouts in Next.js is that on navigation,

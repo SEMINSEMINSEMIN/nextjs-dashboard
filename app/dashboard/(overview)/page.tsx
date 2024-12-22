@@ -10,6 +10,7 @@ import { lusitana } from "@/app/ui/fonts";
  * But there is nothing wrong with streaming the sections or the whole page
  * if that's what your application needs.
  */
+// The Suspense fallback is embedded into the initial HTML file along with the static content.
 import { Suspense } from "react";
 
 // Grouping components
