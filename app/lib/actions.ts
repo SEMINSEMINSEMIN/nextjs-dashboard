@@ -14,12 +14,34 @@ import { sql } from "@vercel/postgres";
  */
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { error } from "console";
 
 const FormSchema = z.object({
     id: z.string(),
-    customerId: z.string(),
-    amount: z.coerce.number(), // coerce: change, change string to a number while also validating its type
-    status: z.enum(["pending", "paid"]), // z.enum은 미리 정의된 값들 중에서만 입력값을 허용하도록 제한합니다. 예를 들어, 위 코드에서 status 필드는 "pending" 또는 "paid" 값만 허용합니다.
+    customerId: z.string({
+        /**
+         * Zod throws error if the customer field is empty as it expects a type string
+         * 하지만 invalid_type_error 값을 추가하면, 오류 메세지를 지정할 수 있다
+         */
+        invalid_type_error: "Please select a customer.",
+    }),
+    /**
+     * coerce: change, change string to a number while also validating its type
+     * z.coerce.number():
+     *     문자열을 숫자로 변환
+     *     만약 문자열이 비어있으면 디폴트값은 0임.
+     * gt(0, ...): 숫자로 변환한 값이 0보다 커야한다.
+     */
+    amount: z.coerce
+        .number()
+        .gt(0, { message: "Please enter an amount greater than $0." }),
+    /**
+     * z.enum은 미리 정의된 값들 중에서만 입력값을 허용하도록 제한합니다.
+     * 예를 들어, 아래 코드에서 status 필드는 "pending" 또는 "paid" 값만 허용합니다.
+     */
+    status: z.enum(["pending", "paid"], {
+        invalid_type_error: "Please select an invoice status.",
+    }),
     date: z.string(),
 });
 
@@ -28,12 +50,36 @@ const FormSchema = z.object({
 // 결과: id와 date가 없는 새 스키마 CreateInvoice가 만들어진다.
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 
-export async function createInvoice(formData: FormData) {
-    const { customerId, amount, status } = CreateInvoice.parse({
+export type State = {
+    errors?: {
+        customerId?: string[];
+        amount?: string[];
+        status?: string[];
+    };
+    message?: string | null;
+};
+
+// prevState: contains the state passed from the useActionState hook
+export async function createInvoice(prevState: State, formData: FormData) {
+    /**
+     * safeParse:
+     *      return an object containing either a success or error field.
+     */
+    const validatedFields = CreateInvoice.safeParse({
         customerId: formData.get("customerId"),
         amount: formData.get("amount"),
         status: formData.get("status"),
     });
+
+    if (!validatedFields.success) {
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: "Missing Fields. Failed to Create Invoice.",
+        };
+    }
+
+    const { customerId, amount, status } = validatedFields.data;
+
     const amountInCents = amount * 100;
     const date = new Date().toISOString().split("T")[0]; // create a new date with the format "YYYY-MM-DD" for the invoice's creation date:
 
@@ -56,13 +102,25 @@ export async function createInvoice(formData: FormData) {
 
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
 
-export async function updateInvoice(id: string, formData: FormData) {
-    const { customerId, amount, status } = UpdateInvoice.parse({
+export async function updateInvoice(
+    id: string,
+    prevState: State,
+    formData: FormData
+) {
+    const validatedFields = UpdateInvoice.safeParse({
         customerId: formData.get("customerId"),
         amount: formData.get("amount"),
         status: formData.get("status"),
     });
 
+    if (!validatedFields.success) {
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: "Missing Fields. Failed to Update Invoice.",
+        };
+    }
+
+    const { customerId, amount, status } = validatedFields.data;
     const amountInCents = amount * 100;
 
     try {
